@@ -3,6 +3,6 @@
   "start_delay": 1000,
   "lat": 30.514882,
   "lon": 114.413702,
-  "debug": 0,
+  "debug": 1,
   "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254101e) XWEB/16389 Flue"
 }

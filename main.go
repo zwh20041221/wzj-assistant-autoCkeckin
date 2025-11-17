@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/zwh20041221/wzj-assistant-autoCkeckin/internal/autoqr"
 	"github.com/zwh20041221/wzj-assistant-autoCkeckin/internal/config"
 	"github.com/zwh20041221/wzj-assistant-autoCkeckin/internal/input"
 	"github.com/zwh20041221/wzj-assistant-autoCkeckin/internal/qrws"
@@ -56,6 +57,7 @@ func main() {
 	}
 
 	// 轮询并处理签到
+	var lastAutoQRSignID int
 	for {
 		active, err := cli.ActiveSigns(openid)
 		if err != nil {
@@ -77,6 +79,34 @@ func main() {
 			warm.Attach(a.CourseID, a.SignID)
 			// 这里的 Attach 可能只是登记了待订阅（若 connect 尚未完成），因此提示更中性
 			logf("[QR] 已登记订阅目标 /attendance/%d/%d/qr，等待连接/二维码...\n", a.CourseID, a.SignID)
+
+			// 自动化：使用 AutoHotkey 模拟 PC 微信截图识别二维码
+			if lastAutoQRSignID != a.SignID {
+				lastAutoQRSignID = a.SignID
+				courseID := a.CourseID
+				signID := a.SignID
+				go func() {
+					logf("[AutoQR] 等待二维码链接以触发 PC 微信截图识别 courseId=%d signId=%d\n", courseID, signID)
+					select {
+					case qrURL := <-warm.QrURLCh:
+						logf("[AutoQR] 收到二维码链接，准备生成 PNG 并通过 AutoHotkey 触发 PC 微信识别: %s\n", qrURL)
+						png, err := autoqr.GenerateQRPng(qrURL, 320)
+						if err != nil {
+							logf("[AutoQR] 生成二维码 PNG 失败: %v\n", err)
+							return
+						}
+						logf("[AutoQR] 已生成二维码图片: %s\n", png)
+						if err := autoqr.LaunchWeChatScreenshot(png, 720, 160, 320); err != nil {
+							logf("[AutoQR] 调用 AutoHotkey 失败: %v\n", err)
+							logln("[AutoQR] 提示: 请安装 AutoHotkey(v1) 并设置环境变量 AUTOHOTKEY_EXE，或手动按 Alt+A 截图框选生成的二维码图片以识别")
+						} else {
+							logln("[AutoQR] 已触发 Alt+A 并框选二维码，等待 WeChat 识别与 WS 回推(type=3)")
+						}
+					case <-time.After(60 * time.Second):
+						logln("[AutoQR] 60s 内未收到二维码链接，跳过本次自动截图识别")
+					}
+				}()
+			}
 
 			// 等待最多 2 分钟
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

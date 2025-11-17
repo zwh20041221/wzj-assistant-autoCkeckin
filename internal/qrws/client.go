@@ -43,7 +43,9 @@ type Client struct {
 	subscribed string // courseId/signId key
 	stopCh     chan struct{}
 	// 学生结果通道：当服务端推送 type=3 时，向外部报告一次
-	ResultCh      chan StudentResult
+	ResultCh chan StudentResult
+	// 二维码链接通道：当服务端推送 type=1 时，向外部发送最新 qrUrl
+	QrURLCh       chan string
 	handshakeDone chan struct{}
 }
 
@@ -52,6 +54,7 @@ func New() *Client {
 		endpoint: "wss://www.teachermate.com.cn/faye",
 		stopCh:   make(chan struct{}),
 		ResultCh: make(chan StudentResult, 1),
+		QrURLCh:  make(chan string, 1),
 	}
 }
 
@@ -339,6 +342,16 @@ func (c *Client) handleQRMessage(m map[string]any) {
 			// Render QR in terminal
 			infof("[QR] 刷新二维码 @ %s\n", time.Now().Format(time.RFC3339))
 			qr.Print(url)
+			// 非阻塞发送二维码链接
+			select {
+			case c.QrURLCh <- url:
+			default:
+				select {
+				case <-c.QrURLCh:
+				default:
+				}
+				c.QrURLCh <- url
+			}
 		}
 		return
 	}
