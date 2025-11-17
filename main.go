@@ -80,32 +80,69 @@ func main() {
 			// 这里的 Attach 可能只是登记了待订阅（若 connect 尚未完成），因此提示更中性
 			logf("[QR] 已登记订阅目标 /attendance/%d/%d/qr，等待连接/二维码...\n", a.CourseID, a.SignID)
 
-			// 自动化：使用 AutoHotkey 模拟 PC 微信截图识别二维码
-			if lastAutoQRSignID != a.SignID {
-				lastAutoQRSignID = a.SignID
-				courseID := a.CourseID
-				signID := a.SignID
-				go func() {
-					logf("[AutoQR] 等待二维码链接以触发 PC 微信截图识别 courseId=%d signId=%d\n", courseID, signID)
-					select {
-					case qrURL := <-warm.QrURLCh:
-						logf("[AutoQR] 收到二维码链接，准备生成 PNG 并通过 AutoHotkey 触发 PC 微信识别: %s\n", qrURL)
-						png, err := autoqr.GenerateQRPng(qrURL, 320)
-						if err != nil {
-							logf("[AutoQR] 生成二维码 PNG 失败: %v\n", err)
-							return
+			// 模式控制：manual 仅等待扫码；autohotkey 自动反复截图识别
+			if cfg.AutoQRMode == "autohotkey" {
+				if lastAutoQRSignID != a.SignID {
+					lastAutoQRSignID = a.SignID
+					courseID := a.CourseID
+					signID := a.SignID
+					// 控制扫描协程的结束（仅在 QR 更新时触发扫描）
+					autoDone := make(chan struct{})
+					go func() {
+						logf("[AutoQR] 等待二维码链接以触发 PC 微信截图识别 courseId=%d signId=%d\n", courseID, signID)
+						var lastQR string
+						var lastPNG string
+						// 内部函数：对当前 QR 执行一次截图识别
+						doScan := func() {
+							if lastQR == "" {
+								return
+							}
+							// 初次或 QR 更新时生成新 PNG
+							if lastPNG == "" {
+								p, err := autoqr.GenerateQRPng(lastQR, 320)
+								if err != nil {
+									logf("[AutoQR] 生成二维码 PNG 失败: %v\n", err)
+									return
+								}
+								lastPNG = p
+								logf("[AutoQR] 已生成二维码图片: %s\n", lastPNG)
+							}
+							if err := autoqr.LaunchWeChatScreenshot(lastPNG, cfg.AutoQRX, cfg.AutoQRY, cfg.AutoQRSize, cfg.AutoQRRecognizeX, cfg.AutoQRRecognizeY); err != nil {
+								logf("[AutoQR] 调用 AutoHotkey 失败: %v\n", err)
+								logln("[AutoQR] 提示: 请安装 AutoHotkey(v1) 并设置环境变量 AUTOHOTKEY_EXE，或手动按 Alt+A 截图框选生成的二维码图片以识别")
+							} else {
+								logln("[AutoQR] 已触发 Alt+A 并框选二维码，等待 WeChat 识别与 WS 回推(type=3)")
+							}
 						}
-						logf("[AutoQR] 已生成二维码图片: %s\n", png)
-						if err := autoqr.LaunchWeChatScreenshot(png, 720, 160, 320); err != nil {
-							logf("[AutoQR] 调用 AutoHotkey 失败: %v\n", err)
-							logln("[AutoQR] 提示: 请安装 AutoHotkey(v1) 并设置环境变量 AUTOHOTKEY_EXE，或手动按 Alt+A 截图框选生成的二维码图片以识别")
-						} else {
-							logln("[AutoQR] 已触发 Alt+A 并框选二维码，等待 WeChat 识别与 WS 回推(type=3)")
+
+						// 主循环：仅在接收到新 QR 时进行扫描
+						for {
+							select {
+							case qrURL := <-warm.QrURLCh:
+								// 二维码更新：重置 PNG 并立即扫描
+								if qrURL != lastQR {
+									lastQR = qrURL
+									if lastPNG != "" {
+										// 尝试删除旧 PNG（忽略错误）
+										_ = os.Remove(lastPNG)
+										lastPNG = ""
+									}
+								}
+								doScan()
+							case <-autoDone:
+								if lastPNG != "" {
+									_ = os.Remove(lastPNG)
+								}
+								return
+							}
 						}
-					case <-time.After(60 * time.Second):
-						logln("[AutoQR] 60s 内未收到二维码链接，跳过本次自动截图识别")
-					}
-				}()
+					}()
+
+					// 在等待结果后关闭自动重扫
+					defer close(autoDone)
+				}
+			} else {
+				logln("[QR] 手动模式：不会触发 AutoHotkey 自动截图，请使用手机或 PC 微信自行识别二维码")
 			}
 
 			// 等待最多 2 分钟

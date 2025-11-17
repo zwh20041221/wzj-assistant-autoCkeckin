@@ -5,6 +5,7 @@
 - WebSocket 预连接 Bayeux 通道，自动订阅二维码频道；
 - 控制台渲染签到二维码；
 - 支持定位（GPS）签到与普通签到；
+- 支持 AutoHotkey 自动识别二维码（驱动 PC 微信 Alt+A 截图识别，二维码更新即刻重扫）；
 - 全部日志带时间戳，支持 debug 详略切换。
 
 > 仅供学习交流，请遵守相关平台与课程规则，勿用于任何违反协议与法规的用途。
@@ -28,7 +29,8 @@ wzj-assistant-autoCkeckin/
 │  ├─ input/                       # 读取用户输入（openid 或包含 openid 的 URL）
 │  ├─ requests/                    # Teachermate HTTP API 封装（ActiveSigns / SignIn 等）
 │  ├─ qr/                          # 终端二维码渲染（mdp/qrterminal）
-│  └─ qrws/                        # WS 客户端（Bayeux）：握手/连接/心跳/订阅/消息处理
+│  ├─ qrws/                        # WS 客户端（Bayeux）：握手/连接/心跳/订阅/消息处理
+│  └─ autoqr/                      # AutoHotkey 集成：生成二维码 PNG、驱动微信截图识别
 └─ go.mod / go.sum                 # Go 模块依赖
 ```
 
@@ -49,6 +51,9 @@ wzj-assistant-autoCkeckin/
 - Go 1.20+（推荐 1.21/1.22）
 - 终端支持 UTF-8 输出
 - 可访问 `v18.teachermate.cn` 与 `www.teachermate.com.cn`（网络环境需正常）
+- Windows + AutoHotkey v1（仅当启用自动扫码时需要）
+  - 建议安装路径：`C:\\Program Files\\AutoHotkey\\`
+  - 需使用 v1 引擎（v2 语法不兼容），可与 v2 并存
 
 ## 安装与构建
 ```bash
@@ -71,14 +76,24 @@ go run main.go
   "lat": 0,
   "lon": 0,
   "ua": "Your UA string here",
-  "debug": 0
+  "debug": 0,
+  "autoqr_mode": "autohotkey",
+  "autoqr_x": 420,
+  "autoqr_y": 160,
+  "autoqr_size": 320,
+  "autoqr_recognize_x": 560,
+  "autoqr_recognize_y": 520
 }
 ```
 - `polling_interval`：轮询活跃签到的间隔（毫秒）
 - `start_delay`：保留字段（毫秒）
-- `lat`/`lon`：用于定位签到的坐标（为 0 则尝试无坐标签到）
+- `lat`/`lon`：用于定位签到的坐标（为 0 则尝试无坐标）
 - `ua`：HTTP 请求的 User-Agent（建议填写微信/浏览器 UA）
-- `debug`：1=开启详细日志（RAW 帧/心跳/逐条消息），0=仅关键日志
+- `debug`：1=详细日志（RAW 帧/心跳/逐条消息），0=仅关键日志
+- `autoqr_mode`：`manual`（手动扫码）或 `autohotkey`（自动扫码）
+- `autoqr_x / autoqr_y`：二维码 PNG 显示窗口左上角屏幕坐标（像素）
+- `autoqr_size`：二维码 PNG 的边长（像素），用于 Alt+A 框选区域
+- `autoqr_recognize_x / autoqr_recognize_y`：识别按钮/图标的绝对屏幕坐标（像素）。若填写 0，则仅执行框选与居中点击，不再额外点击识别图标。
 
 ## 运行指南
 ```bash
@@ -102,6 +117,22 @@ go run main.go
 > 使用建议：
 > - 可以先运行程序，待 WS `connect ok` 后再由老师发起签到；若签到已在进行中再运行，程序会检测到活动并自动订阅（连接未就绪时会延迟订阅，连接成功后立即自动订阅）。
 
+### Windows + AutoHotkey（自动扫码）
+1) 安装 AutoHotkey v1（不是 v2），推荐 64 位 Unicode 版，安装到 `C:\\Program Files\\AutoHotkey\\`；
+2) 设置环境变量指向 v1 引擎（避免误用 v2）：
+```powershell
+setx AUTOHOTKEY_EXE "C:\\Program Files\\AutoHotkey\\AutoHotkeyU64.exe"
+```
+3) 确认微信已登录，且“截图热键”为 Alt+A；
+4) 在 `config.json` 中设置：
+  - `autoqr_mode` 为 `autohotkey`
+  - 根据屏幕布局调整 `autoqr_x/autoqr_y/autoqr_size`（二维码窗口位置与大小）
+  - 如需自动点击识别按钮，配置 `autoqr_recognize_x/autoqr_recognize_y` 的绝对坐标
+5) 运行程序并等待二维码频道下发，即可自动框选与识别。程序将：
+  - 首次下发二维码立即扫描；
+  - 新二维码下发时，自动更新图片并立刻重扫；
+  - 收到服务端 `type=3` 结果后停止并打印结果。
+
 ## 常见问题（FAQ）
 - 看不到二维码？
   - 检查日志中是否已出现 `subscribe ack` 与 `/attendance/.../qr` 的推送；
@@ -112,6 +143,11 @@ go run main.go
   - 观察返回 `errorCode`，必要时提高 `debug` 以便排查。
 - 日志过多？
   - 将 `debug` 设为 `0`，仅保留关键节点日志。
+ - AutoHotkey 未触发？
+   - 确认已安装 v1，并设置 `AUTOHOTKEY_EXE` 指向 v1 的 `AutoHotkey.exe/AutoHotkeyU64.exe`；
+   - 检查微信是否置顶且已登录，截图热键是否为 Alt+A；
+   - 多显示器/高 DPI：已禁用 DPI 缩放（`SetProcessDPIAware` + `Gui, -DPIScale`），坐标以实际像素为准；如仍偏移，请微调 `autoqr_x/autoqr_y/autoqr_recognize_*`；
+   - 若识别图标位置有变，可将 `autoqr_recognize_*` 置为 0，仅依靠框选后的居中点击触发展示菜单，再手动确认一次。
 
 ## 开发提示
 - 关键文件：

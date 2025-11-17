@@ -54,9 +54,10 @@ func findAutoHotkey() (string, error) {
 }
 
 // LaunchWeChatScreenshot shows the QR PNG in a topmost window via AutoHotkey,
-// triggers WeChat screenshot (Alt+A), drags the selection over the image, and clicks center.
+// triggers WeChat screenshot (Alt+A), drags the selection over the image, clicks center,
+// and optionally clicks an absolute "recognize" button at (recognizeX, recognizeY) if provided (>0).
 // x,y specify screen position; width/height are derived from pngSize.
-func LaunchWeChatScreenshot(pngPath string, x, y, pngSize int) error {
+func LaunchWeChatScreenshot(pngPath string, x, y, pngSize int, recognizeX, recognizeY int) error {
 	ahk, err := findAutoHotkey()
 	if err != nil {
 		return err
@@ -76,6 +77,8 @@ y := %d
 w := %d
 h := %d
 img := "%s"
+rx := %d
+ry := %d
 Gui, -DPIScale
 Gui, +AlwaysOnTop -Caption +ToolWindow
 Gui, Margin, 0, 0
@@ -103,12 +106,14 @@ cx := x + w/2
 cy := y + h/2
 MouseClick, left, %%cx%%, %%cy%%
 Sleep, 500
-; Click absolute position for "识别二维码" icon/button
-MouseClick, left, 560, 520
+; Optionally click absolute position for "识别二维码" icon/button
+if (rx > 0 && ry > 0) {
+	MouseClick, left, %%rx%%, %%ry%%
+}
 Sleep, 800
 Gui, Destroy
 ExitApp
-`, x, y, pngSize, pngSize, escapeAHKPath(pngPath), pngSize, pngSize, escapeAHKPath(pngPath))
+`, x, y, pngSize, pngSize, escapeAHKPath(pngPath), recognizeX, recognizeY, pngSize, pngSize, escapeAHKPath(pngPath))
 
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("wzj_wechat_autoqr_%d.ahk", time.Now().UnixNano()))
 	if err := os.WriteFile(tmp, []byte(script), 0644); err != nil {

@@ -15,6 +15,13 @@ type Config struct {
 	Ua                   string  `json:"ua"`
 	Max_polling_attempts int     `json:"max_polling_attempts"`
 	Debug                int     `json:"debug"`
+	AutoQRMode           string  `json:"autoqr_mode"`        // "manual" 或 "autohotkey"
+	AutoQRIntervalMS     int     `json:"autoqr_interval_ms"` // 自动重扫间隔，毫秒
+	AutoQRX              int     `json:"autoqr_x"`           // 二维码窗口左上角X
+	AutoQRY              int     `json:"autoqr_y"`           // 二维码窗口左上角Y
+	AutoQRSize           int     `json:"autoqr_size"`        // 二维码图片边长
+	AutoQRRecognizeX     int     `json:"autoqr_recognize_x"` // 识别按钮绝对X（可选）
+	AutoQRRecognizeY     int     `json:"autoqr_recognize_y"` // 识别按钮绝对Y（可选）
 }
 
 func Load() (*Config, error) {
@@ -39,6 +46,29 @@ func Load() (*Config, error) {
 	// default debug off
 	if cfg.Debug != 1 {
 		cfg.Debug = 0
+	}
+	// 默认启用 AutoHotkey 模式
+	if cfg.AutoQRMode == "" {
+		cfg.AutoQRMode = "autohotkey"
+	}
+	if cfg.AutoQRIntervalMS <= 0 {
+		cfg.AutoQRIntervalMS = 4000
+	}
+	if cfg.AutoQRX <= 0 {
+		cfg.AutoQRX = 420
+	}
+	if cfg.AutoQRY <= 0 {
+		cfg.AutoQRY = 160
+	}
+	if cfg.AutoQRSize <= 0 {
+		cfg.AutoQRSize = 320
+	}
+	// 默认识别按钮坐标（如不适配可在配置中修改或置为0禁用）
+	if cfg.AutoQRRecognizeX <= 0 {
+		cfg.AutoQRRecognizeX = 560
+	}
+	if cfg.AutoQRRecognizeY <= 0 {
+		cfg.AutoQRRecognizeY = 520
 	}
 	return cfg, nil
 }
