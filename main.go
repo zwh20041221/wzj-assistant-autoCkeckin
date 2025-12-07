@@ -196,4 +196,7 @@ func main() {
 		}
 		break
 	}
+
+	fmt.Println("按回车键退出...")
+	fmt.Scanln()
 }
