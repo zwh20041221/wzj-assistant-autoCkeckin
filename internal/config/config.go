@@ -10,6 +10,8 @@ import (
 type Config struct {
 	Polling_interval     int     `json:"polling_interval"`
 	Start_delay          int     `json:"start_delay"`
+	Start_delay_gps      int     `json:"start_delay_gps"`
+	Start_delay_qr       int     `json:"start_delay_qr"`
 	Lat                  float64 `json:"lat"`
 	Lon                  float64 `json:"lon"`
 	Lat_W12              float64 `json:"lat_w12"`

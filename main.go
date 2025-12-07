@@ -103,6 +103,24 @@ func main() {
 		a := active[0]
 		logln(a)
 
+		// 延迟策略优化：根据签到类型使用不同的延迟配置
+		if a.IsQR == 1 {
+			if cfg.Start_delay_qr > 0 {
+				logf("检测到二维码签到，等待 %d 毫秒...\n", cfg.Start_delay_qr)
+				time.Sleep(time.Duration(cfg.Start_delay_qr) * time.Millisecond)
+			}
+		} else if a.IsGPS == 1 {
+			if cfg.Start_delay_gps > 0 {
+				logf("检测到定位签到，等待 %d 毫秒...\n", cfg.Start_delay_gps)
+				time.Sleep(time.Duration(cfg.Start_delay_gps) * time.Millisecond)
+			}
+		} else {
+			if cfg.Start_delay > 0 {
+				logf("检测到普通签到，等待 %d 毫秒...\n", cfg.Start_delay)
+				time.Sleep(time.Duration(cfg.Start_delay) * time.Millisecond)
+			}
+		}
+
 		// 分支处理：二维码 vs 定位 vs 普通
 		if a.IsQR == 1 {
 			// 订阅 QR 通道以接收二维码与结果
@@ -204,10 +222,20 @@ func main() {
 				logln("[GPS] 签到失败:", err)
 				os.Exit(1)
 			}
-			if resp.ErrorCode == 0 {
+			
+			var errorCode float64
+			if val, ok := resp["errorCode"]; ok {
+				if v, ok := val.(float64); ok {
+					errorCode = v
+				}
+			}
+
+			if errorCode == 0 {
 				logln("[GPS] 签到成功")
+				logln("[GPS] 响应内容:", resp)
 			} else {
-				logf("[GPS] 签到返回错误码: %d\n", resp.ErrorCode)
+				logf("[GPS] 签到返回错误码: %.0f\n", errorCode)
+				logln("[GPS] 响应内容:", resp)
 			}
 			// GPS/普通签到一次即结束
 			break
@@ -219,10 +247,20 @@ func main() {
 			logln("[Sign] 签到失败:", err)
 			os.Exit(1)
 		}
-		if resp.ErrorCode == 0 {
+
+		var errorCode float64
+		if val, ok := resp["errorCode"]; ok {
+			if v, ok := val.(float64); ok {
+				errorCode = v
+			}
+		}
+
+		if errorCode == 0 {
 			logln("[Sign] 签到成功")
+			logln("[Sign] 响应内容:", resp)
 		} else {
-			logf("[Sign] 签到返回错误码: %d\n", resp.ErrorCode)
+			logf("[Sign] 签到返回错误码: %.0f\n", errorCode)
+			logln("[Sign] 响应内容:", resp)
 		}
 		break
 	}

@@ -38,10 +38,6 @@ type SignInQuery struct {
 	Lat      *float64 `json:"lat,omitempty"`
 }
 
-type SignInResp struct {
-	ErrorCode int `json:"errorCode"`
-}
-
 type StudentField struct {
 	ItemName  string      `json:"item_name"`
 	ItemValue interface{} `json:"item_value"` // 可能是string, int, null
@@ -104,10 +100,10 @@ func (c *Client) ActiveSigns(openID string) ([]ActiveSign, error) { //获取活�
 	return out, err
 }
 
-func (c *Client) SignIn(openID string, q SignInQuery) (*SignInResp, error) { //post定位签到的请求
-	var out SignInResp
+func (c *Client) SignIn(openID string, q SignInQuery) (map[string]interface{}, error) { //post定位签到的请求
+	var out map[string]interface{}
 	err := c.doJSON("POST", "https://v18.teachermate.cn/wechat-api/v1/class-attendance/student-sign-in", openID, q, &out, fmt.Sprintf("https://v18.teachermate.cn/wechat-pro-ssr/student/sign?openid=%s", openID))
-	return &out, err
+	return out, err
 }
 
 func (c *Client) GetStudentName(openID string) (string, error) {
