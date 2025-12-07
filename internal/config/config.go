@@ -12,6 +12,10 @@ type Config struct {
 	Start_delay          int     `json:"start_delay"`
 	Lat                  float64 `json:"lat"`
 	Lon                  float64 `json:"lon"`
+	Lat_W12              float64 `json:"lat_w12"`
+	Lon_W12              float64 `json:"lon_w12"`
+	Lat_S1               float64 `json:"lat_s1"`
+	Lon_S1               float64 `json:"lon_s1"`
 	Ua                   string  `json:"ua"`
 	Max_polling_attempts int     `json:"max_polling_attempts"`
 	Debug                int     `json:"debug"`

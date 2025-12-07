@@ -28,6 +28,36 @@ func main() {
 	// 配置调试级别：1 打印详细日志，否则仅必要日志
 	qrws.SetDebug(cfg.Debug == 1)
 
+	// 选择签到地点
+	fmt.Println("请选择签到地点:")
+	fmt.Println("1. 西十二楼")
+	fmt.Println("2. 南一楼")
+	fmt.Println("3. 使用默认配置 (config.json 中的 lat/lon)")
+	var locChoice int
+	fmt.Print("请输入序号 (1-3): ")
+	fmt.Scanln(&locChoice)
+
+	switch locChoice {
+	case 1:
+		if cfg.Lat_W12 != 0 && cfg.Lon_W12 != 0 {
+			cfg.Lat = cfg.Lat_W12
+			cfg.Lon = cfg.Lon_W12
+			logf("已选择西十二楼: lat=%.6f, lon=%.6f\n", cfg.Lat, cfg.Lon)
+		} else {
+			logln("警告: 未配置西十二楼坐标 (lat_w12, lon_w12)，将使用默认配置")
+		}
+	case 2:
+		if cfg.Lat_S1 != 0 && cfg.Lon_S1 != 0 {
+			cfg.Lat = cfg.Lat_S1
+			cfg.Lon = cfg.Lon_S1
+			logf("已选择南一楼: lat=%.6f, lon=%.6f\n", cfg.Lat, cfg.Lon)
+		} else {
+			logln("警告: 未配置南一楼坐标 (lat_s1, lon_s1)，将使用默认配置")
+		}
+	default:
+		logln("使用默认配置坐标")
+	}
+
 	// 提取 openid
 	var openid string
 	for {

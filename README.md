@@ -1,11 +1,12 @@
 # WZJ Assistant Auto Check-in (Go)
 
-一个用于配合「智慧教室/Teachermate」学生端的命令行签到助手：
+
 - 轮询课程的活跃签到；
 - WebSocket 预连接 Bayeux 通道，自动订阅二维码频道；
 - 控制台渲染签到二维码；
+- 支持多地点预设与交互式选择（西十二楼/南一楼/自定义）；
 - 支持定位（GPS）签到与普通签到；
-- 支持 AutoHotkey 自动识别二维码（驱动 PC 微信 Alt+A 截图识别，二维码更新即刻重扫）；
+- 支持 AutoHotkey 自动识别二维码（驱动 PC 微信 Alt+A 截图识别，二维码更新即刻重扫）-----可能不太好用，鼠标会移动到识别二维码的按钮附近，可能需要手动点一下，这点实现的不太好；
 - 全部日志带时间戳，支持 debug 详略切换。
 
 > 仅供学习交流，请遵守相关平台与课程规则，勿用于任何违反协议与法规的用途。
@@ -16,6 +17,7 @@
 - 预连接 WS（Bayeux/Faye）：握手、/meta/connect、心跳、自动重握手
 - 二维码签到：订阅 `/attendance/{courseId}/{signId}/qr`，控制台打印二维码（type=1）
 - 结果回推：解析服务端推送的学生结果（type=3），打印姓名/学号/排名
+- 交互式选点：启动时可选择预设坐标（西十二楼/南一楼）或使用配置文件默认坐标
 - 定位签到：按配置 `lat/lon` 提交坐标签到；未配置时尝试无坐标
 - 普通签到：直接提交，不带经纬度
 - 日志：时间戳前缀；`debug=1` 打印 RAW 帧、心跳 ACK、逐条消息等细节
@@ -23,7 +25,7 @@
 ## 架构与目录
 ```
 wzj-assistant-autoCkeckin/
-├─ main.go                         # 入口：读取配置、获取 openid、预连接、轮询/分支处理
+├─ main.go                         # 入口：读取配置、交互选点、获取 openid、预连接、轮询/分支处理
 ├─ config.json                     # 运行配置（见下）
 ├─ internal/
 │  ├─ input/                       # 读取用户输入（openid 或包含 openid 的 URL）
@@ -73,24 +75,31 @@ go run main.go
 {
   "polling_interval": 4000,
   "start_delay": 1000,
-  "lat": 0,
-  "lon": 0,
-  "ua": "Your UA string here",
-  "debug": 0,
+  "lat": 30.514882,
+  "lon": 114.413702,
+  "lat_w12": 30.508825,
+  "lon_w12": 114.407184,
+  "lat_s1": 30.509998,
+  "lon_s1": 114.413035,
+  "ua": "Mozilla/5.0 ...",
+  "debug": 1,
   "autoqr_mode": "autohotkey",
-  "autoqr_x": 420,
+  "autoqr_interval_ms": 5000,
+  "autoqr_x": 720,
   "autoqr_y": 160,
   "autoqr_size": 320,
-  "autoqr_recognize_x": 560,
+  "autoqr_recognize_x": 580,
   "autoqr_recognize_y": 520
 }
 ```
 - `polling_interval`：轮询活跃签到的间隔（毫秒）
-- `start_delay`：保留字段（毫秒）
-- `lat`/`lon`：用于定位签到的坐标（为 0 则尝试无坐标）
+- `lat`/`lon`：默认定位坐标（当选择“使用默认配置”时生效）
+- `lat_w12`/`lon_w12`：西十二楼预设坐标
+- `lat_s1`/`lon_s1`：南一楼预设坐标
 - `ua`：HTTP 请求的 User-Agent（建议填写微信/浏览器 UA）
 - `debug`：1=详细日志（RAW 帧/心跳/逐条消息），0=仅关键日志
 - `autoqr_mode`：`manual`（手动扫码）或 `autohotkey`（自动扫码）
+- `autoqr_interval_ms`：自动重扫间隔（毫秒，目前主要由二维码更新事件触发）
 - `autoqr_x / autoqr_y`：二维码 PNG 显示窗口左上角屏幕坐标（像素）
 - `autoqr_size`：二维码 PNG 的边长（像素），用于 Alt+A 框选区域
 - `autoqr_recognize_x / autoqr_recognize_y`：识别按钮/图标的绝对屏幕坐标（像素）。若填写 0，则仅执行框选与居中点击，不再额外点击识别图标。
@@ -103,16 +112,19 @@ go run main.go
 # 方式二：运行已编译的可执行文件
 ./wzj-assistant-autoCkeckin
 ```
-启动后，按提示在终端输入 openid 或完整 URL（包含 `?openid=`）。
 
 典型交互流程：
-1. 程序验证 openid，并打印学生姓名；
-2. 启动 WS 预连接，打印握手/连接日志；
-3. 轮询活跃签到：
+1. **选择签到地点**：
+   - 输入 `1`：使用西十二楼坐标（`lat_w12`, `lon_w12`）
+   - 输入 `2`：使用南一楼坐标（`lat_s1`, `lon_s1`）
+   - 输入 `3`：使用默认配置（`lat`, `lon`）
+2. 程序验证 openid，并打印学生姓名；
+3. 启动 WS 预连接，打印握手/连接日志；
+4. 轮询活跃签到：
    - 若 `IsQR==1`：订阅二维码频道，控制台渲染二维码；接收 `type=3` 学生结果后打印；
-   - 若 `IsGPS==1`：按配置经纬度发起定位签到；
+   - 若 `IsGPS==1`：按选定的经纬度发起定位签到；
    - 否则：发起普通签到；
-4. 所有日志带时间戳；`debug=1` 下会附加更多细节（RAW/心跳/消息计数等）。
+5. 所有日志带时间戳；`debug=1` 下会附加更多细节（RAW/心跳/消息计数等）。
 
 > 使用建议：
 > - 可以先运行程序，待 WS `connect ok` 后再由老师发起签到；若签到已在进行中再运行，程序会检测到活动并自动订阅（连接未就绪时会延迟订阅，连接成功后立即自动订阅）。
