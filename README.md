@@ -135,20 +135,22 @@ go run main.go
 > - 可以先运行程序，待 WS `connect ok` 后再由老师发起签到；若签到已在进行中再运行，程序会检测到活动并自动订阅（连接未就绪时会延迟订阅，连接成功后立即自动订阅）。
 
 ### Windows + AutoHotkey（自动扫码）
-1) 安装 AutoHotkey v1（不是 v2），推荐 64 位 Unicode 版，安装到 `C:\\Program Files\\AutoHotkey\\`；
-2) 设置环境变量指向 v1 引擎（避免误用 v2）：
-```powershell
-setx AUTOHOTKEY_EXE "C:\\Program Files\\AutoHotkey\\AutoHotkeyU64.exe"
-```
-3) 确认微信已登录，且“截图热键”为 Alt+A；
-4) 在 `config.json` 中设置：
-  - `autoqr_mode` 为 `autohotkey`
-  - 根据屏幕布局调整 `autoqr_x/autoqr_y/autoqr_size`（二维码窗口位置与大小）
-  - 如需自动点击识别按钮，配置 `autoqr_recognize_x/autoqr_recognize_y` 的绝对坐标
-5) 运行程序并等待二维码频道下发，即可自动框选与识别。程序将：
-  - 首次下发二维码立即扫描；
-  - 新二维码下发时，自动更新图片并立刻重扫；
-  - 收到服务端 `type=3` 结果后停止并打印结果。
+本功能依赖 AutoHotkey v1 来驱动微信截图。使用步骤如下：
+
+1. **安装 AutoHotkey**：
+   - 下载并安装 **AutoHotkey v1.1** 版本（建议直接使用默认安装路径 `C:\Program Files\AutoHotkey\`）。
+   - *注意：请勿安装 v2 版本，除非你确认已配置好 v1 兼容模式。*
+   - 安装完成后**无需**进行任何脚本设置或环境变量配置。
+
+2. **检查微信设置**：
+   - 确保 PC 端微信已登录。
+   - 进入微信“设置” -> “快捷键”，确认“截取屏幕”为默认的 **Alt + A**。
+   - *程序会自动模拟按下 Alt+A 触发截图。*
+
+3. **配置与运行**：
+   - 在 `config.json` 中设置 `autoqr_mode` 为 `autohotkey`。
+   - 运行本程序。当二维码出现时，程序会自动调用 AutoHotkey 进行框选和识别。
+   - *如果你的屏幕分辨率或缩放比例特殊，可能需要微调 `config.json` 中的 `autoqr_x` / `autoqr_y` 等坐标参数。*
 
 ## 常见问题（FAQ）
 - 看不到二维码？
@@ -161,7 +163,7 @@ setx AUTOHOTKEY_EXE "C:\\Program Files\\AutoHotkey\\AutoHotkeyU64.exe"
 - 日志过多？
   - 将 `debug` 设为 `0`，仅保留关键节点日志。
  - AutoHotkey 未触发？
-   - 确认已安装 v1，并设置 `AUTOHOTKEY_EXE` 指向 v1 的 `AutoHotkey.exe/AutoHotkeyU64.exe`；
+   - 确认已安装 AutoHotkey v1，且安装在默认路径（`C:\Program Files\AutoHotkey\`）；
    - 检查微信是否置顶且已登录，截图热键是否为 Alt+A；
    - 多显示器/高 DPI：已禁用 DPI 缩放（`SetProcessDPIAware` + `Gui, -DPIScale`），坐标以实际像素为准；如仍偏移，请微调 `autoqr_x/autoqr_y/autoqr_recognize_*`；
    - 若识别图标位置有变，可将 `autoqr_recognize_*` 置为 0，仅依靠框选后的居中点击触发展示菜单，再手动确认一次。
